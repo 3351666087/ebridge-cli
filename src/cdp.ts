@@ -29,6 +29,7 @@ const AUTHED_EVAL = `(function(){
     url:location.href, title:document.title,
     loggedOut:/Automatic Logout|EVL_020/.test(txt),
     hasLogin: !!pw,
+    hasLogout: !!document.querySelector('a[href*="LGN_LOGOUT" i]'),
     inRun:/\\/urd\\/sits\\.urd\\/run\\//.test(location.href),
     textLen:txt.length
   };
@@ -49,14 +50,19 @@ export class EbrSession {
         `No e-Bridge browser is running on port ${cfg.port}. Start it with:\n  ebr login`
       );
     }
-    // Find a tab already on ebridge; else optionally open one.
+    // Find e-Bridge tabs; prefer an AUTHENTICATED one (there may be a stale
+    // timed-out tab alongside a freshly logged-in one).
+    const hostRe = new RegExp(cfg.baseUrl.replace(/^https?:\/\//, "").replace(/\./g, "\\."));
+    const candidates: Page[] = [];
+    for (const ctx of browser.contexts()) for (const p of ctx.pages()) if (hostRe.test(p.url())) candidates.push(p);
     let page: Page | undefined;
-    for (const ctx of browser.contexts()) {
-      for (const p of ctx.pages()) {
-        if (new RegExp(cfg.baseUrl.replace(/^https?:\/\//, "").replace(/\./g, "\\.")).test(p.url())) { page = p; break; }
-      }
-      if (page) break;
+    for (const p of candidates) {
+      try {
+        const r: any = await p.evaluate(AUTHED_EVAL);
+        if (!r.hasLogin && r.inRun && !r.loggedOut && (!!r.userName || r.hasLogout || r.textLen > 300)) { page = p; break; }
+      } catch { /* ignore */ }
     }
+    if (!page) page = candidates[0];
     if (!page) {
       if (!opts.open) {
         throw new EbrError(`No e-Bridge tab is open in the browser. Run 'ebr login' and log in, then retry.`);
@@ -80,7 +86,7 @@ export class EbrSession {
 
   async info(): Promise<PageInfo> {
     const r: any = await this.page.evaluate(AUTHED_EVAL);
-    const authed = !r.hasLogin && r.inRun && !r.loggedOut && r.textLen > 400;
+    const authed = !r.hasLogin && r.inRun && !r.loggedOut && (!!r.userName || r.hasLogout || r.textLen > 300);
     return {
       url: r.url, title: r.title, screen: this.screenCode(r.url),
       userName: r.userName || undefined, authed, loggedOut: !!r.loggedOut,
