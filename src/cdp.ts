@@ -174,4 +174,34 @@ export class EbrSession {
   async screenshot(file: string): Promise<void> {
     await this.page.screenshot({ path: file, fullPage: true });
   }
+
+  /** Extract the Full Academic Records table into clean structured modules. */
+  async extractTranscript(): Promise<{ title: string; modules: any[]; error?: string }> {
+    return this.page.evaluate(`(function(){
+      var tables=[].slice.call(document.querySelectorAll('table'));
+      var main=null;
+      for(var i=0;i<tables.length;i++){var h=tables[i].innerText||'';if(/Module Code/i.test(h)&&/Grade/i.test(h)&&/Credit/i.test(h)){main=tables[i];break;}}
+      if(!main) return {title:document.title, modules:[], error:'no results table on this screen'};
+      var rows=[];
+      var tb=main.tBodies&&main.tBodies.length?[].slice.call(main.tBodies):[];
+      if(tb.length){ for(var b=0;b<tb.length;b++){ rows=rows.concat([].slice.call(tb[b].rows)); } }
+      else { rows=[].slice.call(main.rows); }
+      var mods=[];
+      for(var r=0;r<rows.length;r++){
+        var tr=rows[r];
+        var cells=[].slice.call(tr.children).filter(function(c){return c.tagName==='TD'||c.tagName==='TH';});
+        if(cells.length<7) continue;
+        var period=(cells[0].innerText||'').replace(/\\s+/g,' ').trim();
+        if(!/^(ACYR|SEM\\s?\\d|YEAR|Y\\d|S\\d|\\d{4})/i.test(period)) continue;
+        function cv(i){return cells[i]?(cells[i].innerText||'').replace(/\\s+/g,' ').trim():'';}
+        var comps=[];
+        var nt=tr.querySelector('table');
+        if(nt){ var nr=[].slice.call(nt.querySelectorAll('tr'));
+          for(var k=0;k<nr.length;k++){ var cc=[].slice.call(nr[k].children).map(function(x){return (x.innerText||'').replace(/\\s+/g,' ').trim();});
+            if(cc.length>=4 && cc[0] && !/Component title/i.test(cc[0])) comps.push({component:cc[0],type:cc[1],weight:cc[2],mark:cc[3]}); } }
+        mods.push({period:period, code:cv(1), title:cv(2), moduleType:cv(3), credit:cv(4), mark:cv(5), grade:cv(6), attempt:cv(7), components:comps});
+      }
+      return {title:document.title, modules:mods};
+    })()`) as Promise<{ title: string; modules: any[]; error?: string }>;
+  }
 }

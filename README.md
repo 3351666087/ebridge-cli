@@ -69,6 +69,10 @@ ebr go "<link text>"          # follow any menu/link by its visible text
 ebr read [--json]             # dump the current screen's tables (or text)
 ebr screenshot [file.png]
 
+# export the transcript to a file (md / csv / json):
+ebr transcript -o transcript.md
+ebr transcript --format csv -o transcript.csv
+
 # curated shortcuts (navigate + read):
 ebr records                   # Full Academic Records (transcript + grades)
 ebr marks                     # Component Marks (current-year breakdown)

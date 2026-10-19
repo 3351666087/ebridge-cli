@@ -66,6 +66,7 @@ curated shortcut.
 | Task | Command |
 |------|---------|
 | Transcript + grades | `ebr records --json` |
+| Export transcript to a file | `ebr transcript [--format md\|csv\|json] [-o file]` |
 | Component marks (this year) | `ebr marks --json` |
 | Timetable landing / key dates | `ebr timetable --json` |
 | Registration | `ebr registration --json` |

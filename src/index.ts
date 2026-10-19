@@ -40,6 +40,10 @@ const USAGE = `ebr — XJTLU e-Bridge (SITS:Vision) CLI
     ebr read [--json]     dump the current screen's tables (or text)
     ebr screenshot [file]
 
+  Export:
+    ebr transcript [--format md|csv|json] [-o file]
+                          export the Full Academic Records transcript to a file
+
   Curated shortcuts (navigate + read):
     ebr records           Full Academic Records (transcript + grades)
     ebr marks             Component Marks (current year breakdown)
@@ -83,6 +87,12 @@ async function main(): Promise<number> {
     }
     case "read": return withSession(cfg, true, (s) => cmd.read(s)).then(() => 0);
     case "screenshot": return withSession(cfg, true, (s) => cmd.screenshot(s, positionals[1])).then(() => 0);
+    case "transcript":
+    case "export": {
+      const format = typeof opts.format === "string" ? opts.format : (typeof opts.f === "string" ? opts.f : "md");
+      const out = typeof opts.o === "string" ? opts.o : (typeof opts.out === "string" ? opts.out : undefined);
+      return withSession(cfg, true, (s) => cmd.transcript(s, { format, out })).then(() => 0);
+    }
     case "records": return withSession(cfg, true, (s) => cmd.curated(s, ["Academic Records", "Full Academic Records"])).then(() => 0);
     case "marks": return withSession(cfg, true, (s) => cmd.curated(s, ["Academic Records", "Component Marks"])).then(() => 0);
     case "timetable": return withSession(cfg, true, (s) => cmd.curated(s, ["Timetables"])).then(() => 0);

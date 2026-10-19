@@ -1,6 +1,78 @@
 import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { EbrSession, EbrError } from "./cdp";
 import { emit, note, human, table, isJson } from "./output";
+
+function csvCell(s: string): string {
+  s = s ?? "";
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function toCsv(modules: any[]): string {
+  const head = ["period", "code", "title", "moduleType", "credit", "mark", "grade", "attempt", "component", "componentType", "weight", "componentMark"];
+  const lines = [head.join(",")];
+  for (const m of modules) {
+    if (m.components && m.components.length) {
+      for (const c of m.components) {
+        lines.push([m.period, m.code, m.title, m.moduleType, m.credit, m.mark, m.grade, m.attempt, c.component, c.type, c.weight, c.mark].map(csvCell).join(","));
+      }
+    } else {
+      lines.push([m.period, m.code, m.title, m.moduleType, m.credit, m.mark, m.grade, m.attempt, "", "", "", ""].map(csvCell).join(","));
+    }
+  }
+  return lines.join("\n") + "\n";
+}
+
+function toMarkdown(modules: any[], title: string, who?: string): string {
+  const out: string[] = [];
+  out.push(`# Academic Transcript — XJTLU e-Bridge`);
+  out.push("");
+  if (who) out.push(`**Student:** ${who}  `);
+  out.push(`**Source:** ${title}  `);
+  out.push(`**Exported:** ${new Date().toISOString().slice(0, 10)} (unofficial — generated from Full Academic Records)`);
+  out.push("");
+  out.push(`| Period | Code | Module | Type | Credit | Mark | Grade | Attempt |`);
+  out.push(`|---|---|---|---|---:|---:|:---:|:---:|`);
+  for (const m of modules) {
+    out.push(`| ${m.period} | ${m.code} | ${m.title} | ${m.moduleType} | ${m.credit} | ${m.mark} | ${m.grade} | ${m.attempt} |`);
+  }
+  out.push("");
+  out.push(`## Component marks`);
+  for (const m of modules) {
+    if (!m.components || !m.components.length) continue;
+    out.push("");
+    out.push(`### ${m.code} — ${m.title} (${m.mark} ${m.grade})`);
+    out.push(`| Component | Type | Weight | Mark |`);
+    out.push(`|---|---|---:|---:|`);
+    for (const c of m.components) out.push(`| ${c.component} | ${c.type} | ${c.weight} | ${c.mark} |`);
+  }
+  out.push("");
+  return out.join("\n");
+}
+
+export async function transcript(sess: EbrSession, opts: { format?: string; out?: string }): Promise<void> {
+  const who = (await sess.ensureAuthed()).userName;
+  await sess.ensureHome();
+  for (const step of ["Academic Records", "Full Academic Records"]) {
+    const l = await sess.findLink(step);
+    if (!l) throw new EbrError(`Could not find "${step}". Try: ebr map`);
+    await sess.go(step);
+  }
+  const data = await sess.extractTranscript();
+  if (data.error || !data.modules.length) {
+    throw new EbrError(`Could not read the transcript table (${data.error || "0 modules"}). Check with: ebr read`);
+  }
+  const fmt = (opts.format || "md").toLowerCase();
+  let content: string, ext: string;
+  if (fmt === "csv") { content = toCsv(data.modules); ext = "csv"; }
+  else if (fmt === "json") { content = JSON.stringify({ student: who, source: data.title, exportedAt: new Date().toISOString(), modules: data.modules }, null, 2); ext = "json"; }
+  else { content = toMarkdown(data.modules, data.title, who); ext = "md"; }
+  const outPath = opts.out || path.join(os.homedir(), `ebridge-transcript.${ext}`);
+  fs.writeFileSync(outPath, content);
+  emit({ saved: outPath, format: fmt, modules: data.modules.length, student: who });
+  note(`Exported ${data.modules.length} modules → ${outPath}`);
+}
 
 function renderTables(tables: string[][][]): void {
   if (isJson()) return;
