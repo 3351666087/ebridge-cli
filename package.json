@@ -1,0 +1,23 @@
+{
+  "name": "ebridge-cli",
+  "version": "0.1.0",
+  "description": "Drive XJTLU e-Bridge (SITS:Vision) from the command line by attaching, over CDP, to a real browser you logged into yourself.",
+  "bin": {
+    "ebr": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -w -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "playwright-core": "^1.48.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "private": true
+}
